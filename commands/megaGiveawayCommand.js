@@ -13,17 +13,28 @@
 
 (function() {
 
+    function isTwitchBot(bots, username) {
+        for (var i in bots) {
+            if (bots[i].equalsIgnoreCase(username)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /*
     * @function generateEntryList
     */
     function generateEntryList(points) {
         var totalEntires = 0;
-       var entries = [];
-       for (i in points) {
-           var userPoints = Number($.inidb.GetString('points', '', points[i]));
-           totalEntires += userPoints;
-           // TODO: exclude bots.txt users from being added to the array.
-           entries.push({ offset: totalEntires, userName: points[i] });
+        var entries = [];
+        var bots = $.readFile('./addons/ignorebots.txt');
+        for (i in points) {
+            if(!isTwitchBot(bots, points[i])) {
+                var userPoints = Number($.inidb.GetString('points', '', points[i]));
+                totalEntires += userPoints;
+                entries.push({ offset: totalEntires, userName: points[i] });
+            }
         }
         return { totalEntires: totalEntires, entries: entries };
     }
@@ -68,7 +79,7 @@
            var entries = giveawayObj.entries;
            if (numWinners > entries.length) numWinners = entries.length;
            var totalEntries = giveawayObj.totalEntires;
-           
+
            var winners = [];
            for (pick = 0; pick < numWinners; pick++) {
                // max entires to pick form changes with each winner
