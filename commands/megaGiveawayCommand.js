@@ -1,5 +1,5 @@
 /**
- * megaGiveaway.js
+ * megaGiveawayCommand.js
  *
  * This command will run a raffle with everyone entered with all their points
  *
@@ -13,58 +13,83 @@
 
 (function() {
 
-     /*
-     * @function generateEntryList
-     */
+    /*
+    * @function generateEntryList
+    */
     function generateEntryList(points) {
-        var entries = [];
-        for (i in points) {
-            var userPoints = Number($.inidb.GetString('points', '', points[i]));
-            // Not the most efficient way for tables with a lot of users & points
-            // TODO: use offset ranges for each user
-            //    [{offset: 0, username: kappa}, {offset: 25, username: glitch}]
-            // TODO: exclude bots.txt users from being added to the array.
-            for ( j = 0; j < userPoints; j++) {
-                entries.push(points[i]);
-            }
+        var totalEntires = 0;
+       var entries = [];
+       for (i in points) {
+           var userPoints = Number($.inidb.GetString('points', '', points[i]));
+           totalEntires += userPoints;
+           // TODO: exclude bots.txt users from being added to the array.
+           entries.push({ offset: totalEntires, userName: points[i] });
         }
-        return entries;
+        return { totalEntires: totalEntires, entries: entries };
     }
 
-    /**
-     * @event command
-     */
-    $.bind('command', function(event) {
-        var command = event.getCommand(),
-            args = event.getArgs(),
-            numWinners = args[0] || 1;
-
-        if (command.equalsIgnoreCase('megagiveaway')) {
-            var points = $.inidb.GetKeyList('points', '');
-            var totalUsers = points.length || 0;
-
-            var entries = generateEntryList(points);
-            var totalEntries = entries.length;
-            var winners = [];
-            for (i = 0; i < numWinners; i++) {
-                var winningNumber = Math.round(Math.random() * totalEntries);
-                winners.push(entries[winningNumber]);
-                entries.splice(winningNumber, 1);  //removes winning entry from raffle
-            }
-            var winnerStr = 'The winner is: @';
-            if (winners.length > 1) winnerStr = 'The winners are: @';
-            winnerStr += winners.join(', @');
-
-            $.say('Picking a winner from ' + totalUsers + ' users and ' + totalEntries + ' total entries!');
-            $.say(winnerStr);
-
+    /*
+    * @function pickWinner
+    */
+   function pickWinner(entries, winningNumber) {
+    var winner;
+    var winnerEntriesCount = 0;
+    for(i = 0; i < entries.length; i++) {
+        if (winner) {
+            // Move all entires back to fill in gap
+            entries[i].offset -= winnerEntriesCount;
+        } else if (entries[i].offset >= winningNumber) {
+            winner = entries[i].userName;
+            // calulate how many entries the winner had
+            winnerEntriesCount = entries[i].offset;
+            if (i > 0) winnerEntriesCount -= entries[i-1].offset;
+            // remove the winner from the pool so they can't win a second time
+            entries.splice(i, 1);
+            // account for them being removed
+            i--;
         }
-    });
+    }
+    return winner;
+}
 
-    /**
-     * @event initReady
-     */
-    $.bind('initReady', function() {
-        $.registerChatCommand('./custom/megaGiveawayCommand.js', 'megagiveaway', 1);
-    });
+   /**
+    * @event command
+    */
+   $.bind('command', function(event) {
+       var command = event.getCommand(),
+           args = event.getArgs(),
+           numWinners = args[0] || 1;
+
+       if (command.equalsIgnoreCase('megagiveaway')) {
+           var points = $.inidb.GetKeyList('points', '');
+           var totalUsers = points.length || 0;
+
+           var giveawayObj = generateEntryList(points);
+           var entries = giveawayObj.entries;
+           if (numWinners > entries.length) numWinners = entries.length;
+           var totalEntries = giveawayObj.totalEntires;
+           
+           var winners = [];
+           for (pick = 0; pick < numWinners; pick++) {
+               // max entires to pick form changes with each winner
+               var max = entries[entries.length - 1].offset;
+               var winningNumber = Math.round(Math.random() * max);
+               winners.push(pickWinner(entries, winningNumber));
+           }
+           var winnerStr = 'The winner is: @';
+           if (winners.length > 1) winnerStr = 'The winners are: @';
+           winnerStr += winners.join(', @');
+
+           $.say('Picking a winner from ' + totalUsers + ' users and ' + totalEntries + ' total entries!');
+           $.say(winnerStr);
+
+       }
+   });
+
+   /**
+    * @event initReady
+    */
+   $.bind('initReady', function() {
+       $.registerChatCommand('./custom/megaGiveawayCommand.js', 'megagiveaway', 1);
+   });
 })();
